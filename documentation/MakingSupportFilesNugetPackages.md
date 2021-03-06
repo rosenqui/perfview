@@ -61,7 +61,7 @@ script, and generates a new *.nupkg in the current directory.
 
 The PerfView reposititory has a Nuget.config file that tells nuget to look in the src\NugetSupportFiles
 directory for nuget packages.   The 'Directory.Build.props' file is the file that tells
-what paritcular version of each of the *.SupportFiles* packages it should actually use.  
+what particular version of each of the *.SupportFiles* packages it should actually use.  
 THus at this point (even before uploading to Nuget.org) you can update the Directory.Build.props to
 point at your latest version, and build PerfView and test that the new behavior works.  
 
@@ -73,7 +73,7 @@ to your new nuget packages. This change is only for local testing (at the moment
 
 Nuget now requires that all Microsoft owned packages use nuget's package signing in order
 to be uploaded.  You also need special permission to upload them.   See 
-[Internal Docs](https://devdiv.visualstudio.com/DevDiv/_git/perfview?_a=preview&path=%2Fdocumentation%2Finternal%2FinternalDocs.md&version=GBmaster) for more on this.   
+[Internal Docs](https://devdiv.visualstudio.com/DevDiv/_git/perfview?_a=preview&path=%2Fdocumentation%2Finternal%2FinternalDocs.md&version=GBmain) for more on this.   
 
 It does take a few minutes after uploading for the packages to become visible. Be patient.  
 

@@ -1,6 +1,7 @@
 //     Copyright (c) Microsoft Corporation.  All rights reserved.
 //
 using FastSerialization;
+using Microsoft.Diagnostics.Tracing.Etlx;
 using Microsoft.Diagnostics.Tracing.Parsers.Kernel;
 using Microsoft.Diagnostics.Tracing.Utilities;
 using System;
@@ -11,8 +12,6 @@ using System.Runtime.InteropServices;
 using System.Text;
 using Utilities;
 using Address = System.UInt64;
-
-#pragma warning disable 1591        // disable warnings on XML comments not being present
 
 /* This file was generated with the command */
 // traceParserGen /needsState /merge /renameFile KernelTraceEventParser.renames /mof KernelTraceEventParser.mof KernelTraceEventParser.cs
@@ -139,7 +138,7 @@ namespace Microsoft.Diagnostics.Tracing.Parsers
             /// </summary> 
             VirtualAlloc = 0x004000,
             /// <summary>
-            /// Log mapping of files into memmory (Win8 and above Only)
+            /// Log mapping of files into memory (Win8 and above Only)
             /// Generally low volume.  
             /// </summary>
             VAMap = 0x8000,
@@ -329,26 +328,26 @@ namespace Microsoft.Diagnostics.Tracing.Parsers
                 {
                     Debug.Assert(data.ThreadID >= 0);
                     Debug.Assert(data.ProcessID >= 0);
-                    state.threadIDtoProcessID.Add((Address)data.ThreadID, 0, data.ProcessID);
+                    state.threadIDtoProcessID.Add(data.ThreadID, 0, data.ProcessID);
                 };
                 ThreadEndGroup += delegate (ThreadTraceData data)
                 {
                     int processID;
                     if (source.IsRealTime)
                     {
-                        state.threadIDtoProcessID.Remove((Address)data.ThreadID);
+                        state.threadIDtoProcessID.Remove(data.ThreadID);
                     }
                     else
                     {
                         // Do we have thread start information for this thread?
-                        if (!state.threadIDtoProcessID.TryGetValue((Address)data.ThreadID, data.TimeStampQPC, out processID))
+                        if (!state.threadIDtoProcessID.TryGetValue(data.ThreadID, data.TimeStampQPC, out processID))
                         {
                             // No, this is likely a circular buffer, remember the thread end information 
                             if (state.threadIDtoProcessIDRundown == null)
-                                state.threadIDtoProcessIDRundown = new HistoryDictionary<int>(100);
+                                state.threadIDtoProcessIDRundown = new HistoryDictionary<int, int>(100);
 
                             // Notice I NEGATE the timestamp, this way HistoryDictionary does the comparison the way I want it.  
-                            state.threadIDtoProcessIDRundown.Add((Address)data.ThreadID, -data.TimeStampQPC, data.ProcessID);
+                            state.threadIDtoProcessIDRundown.Add(data.ThreadID, -data.TimeStampQPC, data.ProcessID);
                         }
                     }
                 };
@@ -3211,10 +3210,10 @@ namespace Microsoft.Diagnostics.Tracing.Parsers
         internal int ThreadIDToProcessID(int threadID, long timeQPC)
         {
             int ret;
-            if (!threadIDtoProcessID.TryGetValue((Address)threadID, timeQPC, out ret))
+            if (!threadIDtoProcessID.TryGetValue(threadID, timeQPC, out ret))
             {
                 // See if we have end-Thread information, and use that if it is there.  
-                if (threadIDtoProcessIDRundown != null && threadIDtoProcessIDRundown.TryGetValue((Address)threadID, -timeQPC, out ret))
+                if (threadIDtoProcessIDRundown != null && threadIDtoProcessIDRundown.TryGetValue(threadID, -timeQPC, out ret))
                 {
                     return ret;
                 }
@@ -3234,9 +3233,9 @@ namespace Microsoft.Diagnostics.Tracing.Parsers
 
             serializer.Write(threadIDtoProcessID.Count);
             serializer.Log("<WriteCollection name=\"ProcessIDForThread\" count=\"" + threadIDtoProcessID.Count + "\">\r\n");
-            foreach (HistoryDictionary<int>.HistoryValue entry in threadIDtoProcessID.Entries)
+            foreach (HistoryDictionary<int, int>.HistoryValue entry in threadIDtoProcessID.Entries)
             {
-                serializer.Write((long)entry.Key);
+                serializer.Write(entry.Key);
                 serializer.Write(entry.StartTime);
                 serializer.Write(entry.Value);
             }
@@ -3249,9 +3248,9 @@ namespace Microsoft.Diagnostics.Tracing.Parsers
             {
                 serializer.Write(threadIDtoProcessIDRundown.Count);
                 serializer.Log("<WriteCollection name=\"ProcessIDForThreadRundown\" count=\"" + threadIDtoProcessIDRundown.Count + "\">\r\n");
-                foreach (HistoryDictionary<int>.HistoryValue entry in threadIDtoProcessIDRundown.Entries)
+                foreach (HistoryDictionary<int, int>.HistoryValue entry in threadIDtoProcessIDRundown.Entries)
                 {
-                    serializer.Write((long)entry.Key);
+                    serializer.Write(entry.Key);
                     serializer.Write(entry.StartTime);
                     serializer.Write(entry.Value);
                 }
@@ -3262,9 +3261,9 @@ namespace Microsoft.Diagnostics.Tracing.Parsers
             {
                 serializer.Log("<WriteCollection name=\"fileIDToName\" count=\"" + fileIDToName.Count + "\">\r\n");
                 serializer.Write(fileIDToName.Count);
-                foreach (HistoryDictionary<string>.HistoryValue entry in fileIDToName.Entries)
+                foreach (HistoryDictionary<Address, string>.HistoryValue entry in fileIDToName.Entries)
                 {
-                    serializer.Write((long)entry.Key);
+                    serializer.WriteAddress(entry.Key);
                     serializer.Write(entry.StartTime);
                     serializer.Write(entry.Value);
                 }
@@ -3309,10 +3308,10 @@ namespace Microsoft.Diagnostics.Tracing.Parsers
             deserializer.Log("<Marker name=\"ProcessIDForThread\"/ count=\"" + count + "\">");
             for (int i = 0; i < count; i++)
             {
-                long key; deserializer.Read(out key);
+                int key; deserializer.Read(out key);
                 long startTimeQPC; deserializer.Read(out startTimeQPC);
                 int value; deserializer.Read(out value);
-                threadIDtoProcessID.Add((Address)key, startTimeQPC, value);
+                threadIDtoProcessID.Add(key, startTimeQPC, value);
             }
 
             deserializer.Read(out count);
@@ -3320,13 +3319,13 @@ namespace Microsoft.Diagnostics.Tracing.Parsers
             deserializer.Log("<Marker name=\"ProcessIDForThreadRundown\"/ count=\"" + count + "\">");
             if (count > 0)
             {
-                threadIDtoProcessIDRundown = new HistoryDictionary<int>(count);
+                threadIDtoProcessIDRundown = new HistoryDictionary<int, int>(count);
                 for (int i = 0; i < count; i++)
                 {
-                    long key; deserializer.Read(out key);
+                    int key; deserializer.Read(out key);
                     long startTimeQPC; deserializer.Read(out startTimeQPC);
                     int value; deserializer.Read(out value);
-                    threadIDtoProcessIDRundown.Add((Address)key, startTimeQPC, value);
+                    threadIDtoProcessIDRundown.Add(key, startTimeQPC, value);
                 }
             }
 
@@ -3337,10 +3336,10 @@ namespace Microsoft.Diagnostics.Tracing.Parsers
                 deserializer.Log("<Marker name=\"fileIDToName\"/ count=\"" + count + "\">");
                 for (int i = 0; i < count; i++)
                 {
-                    long key; deserializer.Read(out key);
+                    Address key; deserializer.ReadAddress(out key);
                     long startTimeQPC; deserializer.Read(out startTimeQPC);
                     string value; deserializer.Read(out value);
-                    fileIDToName.Add((Address)key, startTimeQPC, value);
+                    fileIDToName.Add(key, startTimeQPC, value);
                 }
             });
 
@@ -3368,25 +3367,25 @@ namespace Microsoft.Diagnostics.Tracing.Parsers
             }
         }
 
-        internal HistoryDictionary<string> fileIDToName
+        internal HistoryDictionary<Address, string> fileIDToName
         {
             get
             {
                 if (_fileIDToName == null)
                 {
-                    _fileIDToName = new HistoryDictionary<string>(500);
+                    _fileIDToName = new HistoryDictionary<Address, string>(500);
                 }
 
                 return _fileIDToName;
             }
         }
-        internal HistoryDictionary<int> threadIDtoProcessID
+        internal HistoryDictionary<int, int> threadIDtoProcessID
         {
             get
             {
                 if (_threadIDtoProcessID == null)
                 {
-                    _threadIDtoProcessID = new HistoryDictionary<int>(50);
+                    _threadIDtoProcessID = new HistoryDictionary<int, int>(50);
                 }
 
                 return _threadIDtoProcessID;
@@ -3418,8 +3417,8 @@ namespace Microsoft.Diagnostics.Tracing.Parsers
 
         // Fields 
         internal KernelToUserDriveMapping driveMapping;
-        private HistoryDictionary<string> _fileIDToName;
-        private HistoryDictionary<int> _threadIDtoProcessID;
+        private HistoryDictionary<Address, string> _fileIDToName;
+        private HistoryDictionary<int, int> _threadIDtoProcessID;
         internal Dictionary<int, string> _objectTypeToName;
         private GrowableArray<DiskIOTime> _diskEventTimeStamp;
         internal int lastDiskEventIdx;
@@ -3432,7 +3431,7 @@ namespace Microsoft.Diagnostics.Tracing.Parsers
         /// Also, because circular buffering is not the common case, we only add entries to this table if needed
         /// (if we could not find the thread ID using threadIDtoProcessID).  
         /// </summary>
-        internal HistoryDictionary<int> threadIDtoProcessIDRundown;
+        internal HistoryDictionary<int, int> threadIDtoProcessIDRundown;
         internal KernelTraceEventParser.ParserTrackingOptions callBacksSet;
         #endregion
 
@@ -4444,7 +4443,7 @@ namespace Microsoft.Diagnostics.Tracing.Parsers.Kernel
         public int NewThreadPriority { get { return GetByteAt(8); } }
         public int OldThreadPriority { get { return GetByteAt(9); } }
         public int OldProcessID { get { return state.ThreadIDToProcessID(OldThreadID, TimeStampQPC); } }
-        public string OldProcessName { get { return source.ProcessName(OldProcessID, TimeStampQPC); } }
+        public string OldProcessName { get { return traceEventSource.ProcessName(OldProcessID, TimeStampQPC); } }
         // TODO figure out which one of these are right
         public int NewThreadQuantum { get { return GetByteAt(10); } }
         public int OldThreadQuantum { get { return GetByteAt(11); } }
@@ -5391,13 +5390,13 @@ namespace Microsoft.Diagnostics.Tracing.Parsers.Kernel
         }
 
         /// <summary>
-        /// The time since the I/O was initiated.  
+        /// The time since the I/O was initiated.
         /// </summary>
         public double ElapsedTimeMSec
         {
             get
             {
-                return HighResResponseTime * 1000.0 / source.QPCFreq;
+                return HighResResponseTime * 1000.0 / traceEventSource.QPCFreq;
             }
         }
         // TODO you can get service time (what XPERF gives) by taking the minimum of 
@@ -5588,7 +5587,7 @@ namespace Microsoft.Diagnostics.Tracing.Parsers.Kernel
         {
             get
             {
-                return HighResResponseTime * 1000.0 / source.QPCFreq;
+                return HighResResponseTime * 1000.0 / traceEventSource.QPCFreq;
             }
         }
         public Address Irp { get { return GetAddressAt(16); } }
@@ -6059,7 +6058,7 @@ namespace Microsoft.Diagnostics.Tracing.Parsers.Kernel
     {
         private long InitialTimeQPC { get { if (Version >= 2) { return GetInt64At(0); } return 0; } }
 
-        public double ElapsedTimeMSec { get { return TimeStampRelativeMSec - source.QPCTimeToRelMSec(InitialTimeQPC); } }
+        public double ElapsedTimeMSec { get { return TimeStampRelativeMSec - traceEventSource.QPCTimeToRelMSec(InitialTimeQPC); } }
 
         public int Status { get { if (Version >= 2) { GetInt32At(8); } return 0; } }
 
@@ -6457,27 +6456,35 @@ namespace Microsoft.Diagnostics.Tracing.Parsers.Kernel
 
     public sealed class FileIOCreateTraceData : TraceEvent
     {
+        // Pointer to fltmgr!_FLT_CALLBACK_DATA
         public Address IrpPtr { get { return GetAddressAt(0); } }
+        // Pointer to nt!_FILE_OBJECT
         public Address FileObject { get { return GetAddressAt(LayoutVersion <= 2 ? HostOffset(8, 2) : HostOffset(4, 1)); } }
         // public Address TTID { get { return GetInt32At(Version <= 2 ? HostOffset(4, 1) : HostOffset(8, 2)); } }
 
         /// <summary>
         /// See the Windows CreateFile API CreateOptions for this 
         /// </summary>
+        // _FLT_IO_PARAMETER_BLOCK.Create.Options
+        // 24 lower bits are the Create Options
         public CreateOptions CreateOptions { get { return (CreateOptions)((GetInt32At(LayoutVersion <= 2 ? HostOffset(12, 3) : HostOffset(12, 2))) & 0xFFFFFF); } }
 
         /// <summary>
         /// See Windows CreateFile API CreateDisposition for this.  
         /// </summary>
-        public CreateDisposition CreateDispostion { get { return (CreateDisposition)(GetByteAt(LayoutVersion <= 2 ? HostOffset(15, 3) : HostOffset(15, 2))); } }
+        // _FLT_IO_PARAMETER_BLOCK.Create.Options
+        // 8 higher bits are the Disposition as passed to IoCreateFileSpecifyDeviceObjectHint
+        public CreateDisposition CreateDisposition { get { return (CreateDisposition)(GetByteAt(LayoutVersion <= 2 ? HostOffset(15, 3) : HostOffset(15, 2))); } }
         /// <summary>
         /// See Windows CreateFile API ShareMode parameter
         /// </summary>
+        // _FLT_IO_PARAMETER_BLOCK.Create.FileAttributes
         public FileAttributes FileAttributes { get { return (FileAttributes)(GetInt32At(LayoutVersion <= 2 ? HostOffset(16, 3) : HostOffset(16, 2))); } }
 
         /// <summary>
         /// See windows CreateFile API ShareMode parameter
         /// </summary>
+        // _FLT_IO_PARAMETER_BLOCK.Create.ShareAccess
         public FileShare ShareAccess { get { return (FileShare)(GetInt32At(LayoutVersion <= 2 ? HostOffset(20, 3) : HostOffset(20, 2))); } }
         public string FileName { get { return state.KernelToUser(GetUnicodeStringAt(LayoutVersion <= 2 ? HostOffset(24, 3) : HostOffset(24, 2))); } }
         public override unsafe int ProcessID
@@ -6539,7 +6546,7 @@ namespace Microsoft.Diagnostics.Tracing.Parsers.Kernel
             XmlAttribHex(sb, "IrpPtr", IrpPtr);
             XmlAttribHex(sb, "FileObject", FileObject);
             XmlAttrib(sb, "CreateOptions", CreateOptions);
-            XmlAttrib(sb, "CreateDispostion", CreateDispostion);
+            XmlAttrib(sb, "CreateDisposition", CreateDisposition);
             XmlAttrib(sb, "FileAttributes", FileAttributes);
             XmlAttrib(sb, "ShareAccess", ShareAccess);
             XmlAttrib(sb, "FileName", FileName);
@@ -6553,7 +6560,7 @@ namespace Microsoft.Diagnostics.Tracing.Parsers.Kernel
             {
                 if (payloadNames == null)
                 {
-                    payloadNames = new string[] { "IrpPtr", "FileObject", "CreateOptions", "CreateDispostion", "FileAttributes", "ShareAccess", "FileName" };
+                    payloadNames = new string[] { "IrpPtr", "FileObject", "CreateOptions", "CreateDisposition", "FileAttributes", "ShareAccess", "FileName" };
                 }
 
                 return payloadNames;
@@ -6571,7 +6578,7 @@ namespace Microsoft.Diagnostics.Tracing.Parsers.Kernel
                 case 2:
                     return CreateOptions;
                 case 3:
-                    return CreateDispostion;
+                    return CreateDisposition;
                 case 4:
                     return FileAttributes;
                 case 5:
@@ -6603,15 +6610,17 @@ namespace Microsoft.Diagnostics.Tracing.Parsers.Kernel
     }
 
     /// <summary>
-    /// See Windows CreateFile function CreateDispostion parameter.  
+    /// See Windows CreateFile function CreateDispostion parameter.
+    /// The enum written to the ETW trace is the Disposition parameter passed to IoCreateFileSpecifyDeviceObjectHint.
     /// </summary>
     public enum CreateDisposition
     {
-        CREATE_NEW = 1,         // Must NOT exist previously, otherwise fails 
-        CREATE_ALWAYS = 2,      // Creates if necessary, trucates 
-        OPEN_EXISING = 3,       // Must exist previously otherwise fails. 
-        OPEN_ALWAYS = 4,        // Create if necessary, leaves data.  
-        TRUNCATE_EXISTING = 5,  // Must Exist previously, otherwise fails, truncates.  MOST WRITE OPENS USE THIS!
+        SUPERSEDE = 0,          // FILE_SUPERSEDE - if the file exists, replace a file with another file.
+        CREATE_NEW = 2,         // FILE_OPEN - Must NOT exist previously, otherwise fails
+        CREATE_ALWAYS = 5,      // FILE_OVERWRITE_IF - Creates if necessary, trucates
+        OPEN_EXISTING = 1,       // FILE_OPEN - Must exist previously otherwise fails.
+        OPEN_ALWAYS = 3,        // FILE_OPEN_IF - Create if necessary, leaves data.
+        TRUNCATE_EXISTING = 4,  // FILE_OVERWRITE - Must Exist previously, otherwise fails, truncates.  MOST WRITE OPENS USE THIS!
     }
 
     /// <summary>
@@ -7204,9 +7213,9 @@ namespace Microsoft.Diagnostics.Tracing.Parsers.Kernel
         }
         protected internal override void Dispatch()
         {
-            Debug.Assert(!(Version == 0 && EventDataLength != 20));
-            Debug.Assert(!(Version == 1 && EventDataLength < HostOffset(28, 1)));   // TODO fixed by hand
-            Debug.Assert(!(Version > 1 && EventDataLength < HostOffset(28, 1)));
+            //Debug.Assert(!(Version == 0 && EventDataLength != 20));
+            //Debug.Assert(!(Version == 1 && EventDataLength < HostOffset(28, 1)));   // TODO fixed by hand
+            //Debug.Assert(!(Version > 1 && EventDataLength < HostOffset(28, 1)));
             Action(this);
         }
         public override StringBuilder ToXml(StringBuilder sb)
@@ -7375,8 +7384,8 @@ namespace Microsoft.Diagnostics.Tracing.Parsers.Kernel
         }
         protected internal override void Dispatch()
         {
-            Debug.Assert(!(Version == 2 && EventDataLength != HostOffset(36, 1)));
-            Debug.Assert(!(Version > 2 && EventDataLength < HostOffset(36, 1)));
+            //Debug.Assert(!(Version == 2 && EventDataLength != HostOffset(36, 1)));
+            //Debug.Assert(!(Version > 2 && EventDataLength < HostOffset(36, 1)));
             Action(this);
         }
 
@@ -7483,8 +7492,8 @@ namespace Microsoft.Diagnostics.Tracing.Parsers.Kernel
         }
         protected internal override void Dispatch()
         {
-            Debug.Assert(!(Version == 2 && EventDataLength != HostOffset(44, 1)));
-            Debug.Assert(!(Version > 2 && EventDataLength < HostOffset(44, 1)));
+            //Debug.Assert(!(Version == 2 && EventDataLength != HostOffset(44, 1)));
+            //Debug.Assert(!(Version > 2 && EventDataLength < HostOffset(44, 1)));
             Action(this);
         }
         public override StringBuilder ToXml(StringBuilder sb)
@@ -8328,7 +8337,7 @@ namespace Microsoft.Diagnostics.Tracing.Parsers.Kernel
         {
             get
             {
-                return (TimeStampQPC - InitialTime) * 1000.0 / source.QPCFreq;
+                return (TimeStampQPC - InitialTime) * 1000.0 / traceEventSource.QPCFreq;
             }
         }
         private long InitialTime { get { return GetInt64At(0); } }
@@ -9810,7 +9819,7 @@ namespace Microsoft.Diagnostics.Tracing.Parsers.Kernel
     {
         private long InitialTimeQPC { get { return GetInt64At(0); } }
 
-        public double ElapsedTimeMSec { get { return TimeStampRelativeMSec - source.QPCTimeToRelMSec(InitialTimeQPC); } }
+        public double ElapsedTimeMSec { get { return TimeStampRelativeMSec - traceEventSource.QPCTimeToRelMSec(InitialTimeQPC); } }
         public Address Routine { get { return GetAddressAt(8); } }
         public int ReturnValue { get { return GetByteAt(HostOffset(12, 1)); } }
         public int Vector { get { return GetByteAt(HostOffset(13, 1)); } }
@@ -9904,7 +9913,7 @@ namespace Microsoft.Diagnostics.Tracing.Parsers.Kernel
     {
         private long InitialTimeQPC { get { return GetInt64At(0); } }
 
-        public double ElapsedTimeMSec { get { return TimeStampRelativeMSec - source.QPCTimeToRelMSec(InitialTimeQPC); } }
+        public double ElapsedTimeMSec { get { return TimeStampRelativeMSec - traceEventSource.QPCTimeToRelMSec(InitialTimeQPC); } }
 
         public Address Routine { get { return GetAddressAt(8); } }
 
@@ -9971,7 +9980,7 @@ namespace Microsoft.Diagnostics.Tracing.Parsers.Kernel
     }
 
     /// <summary>
-    /// Collects the call callStacks for some other event.  
+    /// Collects the call callStacks for some other event.
     /// 
     /// (TODO: always for the event that preceded it on the same thread)?  
     /// </summary>
@@ -9985,7 +9994,7 @@ namespace Microsoft.Diagnostics.Tracing.Parsers.Kernel
         /// <summary>
         /// Converts this to a time relative to the start of the trace in msec. 
         /// </summary>
-        public double EventTimeStampRelativeMSec { get { return source.QPCTimeToRelMSec(EventTimeStampQPC); } }
+        public double EventTimeStampRelativeMSec { get { return traceEventSource.QPCTimeToRelMSec(EventTimeStampQPC); } }
         /// <summary>
         /// The total number of eventToStack frames collected.  The Windows OS currently has a maximum of 96 frames. 
         /// </summary>
@@ -10113,7 +10122,7 @@ namespace Microsoft.Diagnostics.Tracing.Parsers.Kernel
         /// <summary>
         /// Converts this to a time relative to the start of the trace in msec. 
         /// </summary>
-        public double EventTimeStampRelativeMSec { get { return source.QPCTimeToRelMSec(EventTimeStampQPC); } }
+        public double EventTimeStampRelativeMSec { get { return traceEventSource.QPCTimeToRelMSec(EventTimeStampQPC); } }
         /// <summary>
         /// Returns a key that can be used to look up the stack in KeyDelete or KeyRundown events 
         /// </summary>

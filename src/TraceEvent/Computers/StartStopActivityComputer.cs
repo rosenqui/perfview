@@ -32,8 +32,9 @@ namespace Microsoft.Diagnostics.Tracing
         /// <summary>
         /// Create a new ServerRequest Computer.
         /// </summary>
-        public StartStopActivityComputer(TraceLogEventSource source, ActivityComputer taskComputer)
+        public StartStopActivityComputer(TraceLogEventSource source, ActivityComputer taskComputer, bool ignoreApplicationInsightsRequestsWithRelatedActivityId = true)
         {
+            m_ignoreApplicationInsightsRequestsWithRelatedActivityId = ignoreApplicationInsightsRequestsWithRelatedActivityId;
             taskComputer.NoCache = true;            // Can't cache start-stops (at the moment)
             m_source = source;
             m_activeStartStopActivities = new Dictionary<StartStopKey, StartStopActivity>();
@@ -60,7 +61,7 @@ namespace Microsoft.Diagnostics.Tracing
 
             // Only need to fix up V4.6 Windows-ASP activity ids.   It can be removed after we
             // don't care about V4.6 runtimes (since it is fixed in V4.6.2 and beyond). 
-            // It basicaly remembers the related activity ID of the last RequestSend event on
+            // It basically remembers the related activity ID of the last RequestSend event on
             // each thread, which we use to fix the activity ID of the RequestStart event 
             KeyValuePair<Guid, Guid>[] threadToLastAspNetGuids = new KeyValuePair<Guid, Guid>[m_source.TraceLog.Threads.Count];
 #if HTTP_SERVICE_EVENTS
@@ -270,7 +271,7 @@ namespace Microsoft.Diagnostics.Tracing
                 lastHttpServiceDeliverActivityID = Guid.Empty;
             };
 #endif
-            // Show the exception handling call stacks as a seperate Activity.
+            // Show the exception handling call stacks as a separate Activity.
             // This can help users notice the time spent in the exception handling logic.
             var clrExceptionParser = m_source.Clr;
             clrExceptionParser.ExceptionCatchStart += delegate (ExceptionHandlingTraceData data)
@@ -652,11 +653,11 @@ namespace Microsoft.Diagnostics.Tracing
             uint sum = uintPtr[0] + uintPtr[1] + uintPtr[2] + 0x599D99AD;
             if (processID == 0)
             {
-                // We guess that the process ID is < 16 bits and because it was xored
-                // with the lower bits, the upper 16 bits should be independent of the
+                // We guess that the process ID is < 20 bits and because it was xored
+                // with the lower bits, the upper 12 bits should be independent of the
                 // particular process, so we can at least confirm that the upper bits
                 // match. 
-                return ((sum & 0xFFFF0000) == (uintPtr[3] & 0xFFFF0000));
+                return ((sum & 0xFFF00000) == (uintPtr[3] & 0xFFF00000));
             }
 
             if ((sum ^ (uint)processID) == uintPtr[3])  // This is the new style 
@@ -1141,7 +1142,7 @@ namespace Microsoft.Diagnostics.Tracing
                     // If we have a related activity ID, then this start event
                     // is already being tracked by an outer activity (e.g. an
                     // ASP.Net request). Do not process it.
-                    if (!IsTrivialActivityId(data.RelatedActivityID))
+                    if (!IsTrivialActivityId(data.RelatedActivityID) && m_ignoreApplicationInsightsRequestsWithRelatedActivityId)
                     {
                         return;
                     }
@@ -1321,7 +1322,7 @@ namespace Microsoft.Diagnostics.Tracing
         {
             StartStopActivity ret = null;
             long* asLongs = (long*)&activityID;
-            asLongs[1] += processID;    // add in the process ID.       Note that this does not guarentee non-collision we may wish to do better.  
+            asLongs[1] += processID;    // add in the process ID.       Note that this does not guarantee non-collision we may wish to do better.  
             m_activeStartStopActivities.TryGetValue(activityID, out ret);
             return ret;
         }
@@ -1329,14 +1330,14 @@ namespace Microsoft.Diagnostics.Tracing
         private unsafe void SetActiveStartStopActivityTable(Guid activityID, int processID, StartStopActivity newValue)
         {
             long* asLongs = (long*)&activityID;
-            asLongs[1] += processID;    // add in the process ID.       Note that this does not guarentee non-collision we may wish to do better.  
+            asLongs[1] += processID;    // add in the process ID.       Note that this does not guarantee non-collision we may wish to do better.  
             m_activeStartStopActivities[activityID] = newValue;
         }
 
         private unsafe void RemoveActiveStartStopActivityTable(Guid activityID, int processID)
         {
             long* asLongs = (long*)&activityID;
-            asLongs[1] += processID;    // add in the process ID.       Note that this does not guarentee non-collision we may wish to do better.  
+            asLongs[1] += processID;    // add in the process ID.       Note that this does not guarantee non-collision we may wish to do better.  
             m_activeStartStopActivities.Remove(activityID);
         }
 
@@ -1366,6 +1367,7 @@ namespace Microsoft.Diagnostics.Tracing
         private Dictionary<StartStopKey, StartStopActivity> m_activeStartStopActivities;     // Lookup activities by activityID&ProcessID (we call the start-stop key) at the current time
         private int m_nextIndex;                                                             // Used to create unique indexes for StartStopActivity.Index.  
         private StartStopActivity m_deferredStop;                                            // We defer doing the stop action until the next event.  This is what remembers to do this.  
+        private bool m_ignoreApplicationInsightsRequestsWithRelatedActivityId;               // Until .NET Core 3.0, Application Insights events uses this activity id to de-dupe the rest of the nested activities.
         #endregion
     }
 
@@ -1401,7 +1403,7 @@ namespace Microsoft.Diagnostics.Tracing
 
                 sb.Append(TaskName);
                 sb.Append('(');
-                AppendActivityPath(sb, ActivityID);
+                AppendActivityPath(sb, ActivityID, ProcessID);
 
                 if (ExtraInfo != null)
                 {
@@ -1414,9 +1416,9 @@ namespace Microsoft.Diagnostics.Tracing
             }
         }
 
-        private static unsafe StringBuilder AppendActivityPath(StringBuilder sb, Guid guid)
+        private static unsafe StringBuilder AppendActivityPath(StringBuilder sb, Guid guid, int processId)
         {
-            if (StartStopActivityComputer.IsActivityPath(guid, processID: 0))
+            if (StartStopActivityComputer.IsActivityPath(guid, processId))
             {
                 return sb.Append(StartStopActivityComputer.CreateActivityPathString(guid));
             }

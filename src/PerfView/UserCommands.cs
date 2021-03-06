@@ -1,4 +1,5 @@
 ﻿using Diagnostics.Tracing.StackSources;
+using Microsoft.Diagnostics.Tracing.StackSources;
 using Microsoft.Diagnostics.Symbols;
 using Microsoft.Diagnostics.Tracing;
 using Microsoft.Diagnostics.Tracing.Etlx;
@@ -1402,7 +1403,7 @@ namespace PerfViewExtensibility
         /// <summary>
         /// Fetch all the PDBs files needed for viewing 'etlFileName' locally.   If 'processName'
         /// is present we only fetch PDBs needed for that process.  This can be either a process
-        /// name (exe without extention or path) or a decimal numeric ID.  
+        /// name (exe without extension or path) or a decimal numeric ID.  
         /// </summary>
         public void FetchSymbolsForProcess(string etlFileName, string processName = null)
         {
@@ -1448,64 +1449,6 @@ namespace PerfViewExtensibility
             {
                 foreach (var module in focusProcess.LoadedModules)
                     traceLog.CodeAddresses.LookupSymbolsForModule(symReader, module.ModuleFile);
-            }
-        }
-
-
-        /// <summary>
-        /// PrintSerializedExceptionFromProcessDump
-        /// </summary>
-        /// <param name="inputDumpFile">inputDumpFile</param>
-        public void PrintSerializedExceptionFromProcessDump(string inputDumpFile)
-        {
-            TextWriter log = LogFile;
-            if (!App.IsElevated)
-                throw new ApplicationException("Must be Administrator (elevated).");
-
-            if (Environment.Is64BitOperatingSystem)
-            {
-                // TODO FIX NOW.   Find a way of determing which architecture a dump is
-                try
-                {
-                    log.WriteLine("********** TRYING TO OPEN THE DUMP AS 64 BIT ************");
-                    PrintSerializedExceptionFromProcessDumpThroughHeapDump(inputDumpFile, log, ProcessorArchitecture.Amd64);
-                    return; // Yeah! success the first time
-                }
-                catch (Exception e)
-                {
-                    // It might have failed because this was a 32 bit dump, if so try again.  
-                    if (e is ApplicationException)
-                    {
-                        log.WriteLine("********** TRYING TO OPEN THE DUMP AS 32 BIT ************");
-                        PrintSerializedExceptionFromProcessDumpThroughHeapDump(inputDumpFile, log, ProcessorArchitecture.X86);
-                        return;
-                    }
-                    throw;
-                }
-            }
-            else
-            {
-                PrintSerializedExceptionFromProcessDumpThroughHeapDump(inputDumpFile, log, ProcessorArchitecture.X86);
-            }
-
-        }
-
-        private void PrintSerializedExceptionFromProcessDumpThroughHeapDump(string inputDumpFile, TextWriter log, ProcessorArchitecture arch)
-        {
-            var directory = arch.ToString().ToLowerInvariant();
-            var heapDumpExe = Path.Combine(SupportFiles.SupportFileDir, directory, "HeapDump.exe");
-            var options = new CommandOptions().AddNoThrow().AddTimeout(CommandOptions.Infinite);
-            options.AddOutputStream(LogFile);
-
-            options.AddEnvironmentVariable("_NT_SYMBOL_PATH", App.SymbolPath);
-            log.WriteLine("set _NT_SYMBOL_PATH={0}", App.SymbolPath);
-
-            var commandLine = string.Format("\"{0}\" {1} \"{2}\"", heapDumpExe, "/dumpSerializedException:", inputDumpFile);
-            log.WriteLine("Exec: {0}", commandLine);
-            var cmd = Command.Run(commandLine, options);
-            if (cmd.ExitCode != 0)
-            {
-                throw new ApplicationException("HeapDump failed with exit code " + cmd.ExitCode);
             }
         }
 
@@ -1839,7 +1782,7 @@ namespace PerfViewExtensibility
 // TODO FIX NOW decide where to put these.
 public static class TraceEventStackSourceExtensions
 {
-    public static StackSource CPUStacks(this TraceLog eventLog, TraceProcess process = null, bool showUnknownAddresses = false, Predicate<TraceEvent> predicate = null)
+    public static StackSource CPUStacks(this TraceLog eventLog, TraceProcess process = null, CommandLineArgs commandLineArgs = null, bool showOptimizationTiers = false, Predicate<TraceEvent> predicate = null)
     {
         TraceEvents events;
         if (process == null)
@@ -1852,14 +1795,19 @@ public static class TraceEventStackSourceExtensions
         }
 
         var traceStackSource = new TraceEventStackSource(events);
-        traceStackSource.ShowUnknownAddresses = showUnknownAddresses;
+        if (commandLineArgs != null)
+        {
+            traceStackSource.ShowUnknownAddresses = commandLineArgs.ShowUnknownAddresses;
+            traceStackSource.ShowOptimizationTiers = showOptimizationTiers || commandLineArgs.ShowOptimizationTiers;
+        }
         // We clone the samples so that we don't have to go back to the ETL file from here on.  
         return CopyStackSource.Clone(traceStackSource);
     }
-    public static MutableTraceEventStackSource ThreadTimeStacks(this TraceLog eventLog, TraceProcess process = null, bool showUnknownAddresses = false)
+    public static MutableTraceEventStackSource ThreadTimeStacks(this TraceLog eventLog, TraceProcess process = null)
     {
         var stackSource = new MutableTraceEventStackSource(eventLog);
         stackSource.ShowUnknownAddresses = App.CommandLineArgs.ShowUnknownAddresses;
+        stackSource.ShowOptimizationTiers = App.CommandLineArgs.ShowOptimizationTiers;
 
         var computer = new ThreadTimeStackComputer(eventLog, App.GetSymbolReader(eventLog.FilePath));
         computer.ExcludeReadyThread = true;
@@ -1867,21 +1815,24 @@ public static class TraceEventStackSourceExtensions
 
         return stackSource;
     }
-    public static MutableTraceEventStackSource ThreadTimeWithReadyThreadStacks(this TraceLog eventLog, TraceProcess process = null, bool showUnknownAddresses = false)
+
+    public static MutableTraceEventStackSource ThreadTimeWithReadyThreadStacks(this TraceLog eventLog, TraceProcess process = null)
     {
         var stackSource = new MutableTraceEventStackSource(eventLog);
         stackSource.ShowUnknownAddresses = App.CommandLineArgs.ShowUnknownAddresses;
+        stackSource.ShowOptimizationTiers = App.CommandLineArgs.ShowOptimizationTiers;
 
         var computer = new ThreadTimeStackComputer(eventLog, App.GetSymbolReader(eventLog.FilePath));
         computer.GenerateThreadTimeStacks(stackSource);
 
         return stackSource;
     }
-    public static MutableTraceEventStackSource ThreadTimeWithTasksStacks(this TraceLog eventLog, TraceProcess process = null, bool showUnknownAddresses = false)
+    public static MutableTraceEventStackSource ThreadTimeWithTasksStacks(this TraceLog eventLog, TraceProcess process = null)
     {
         // Use MutableTraceEventStackSource to disable activity tracing support
         var stackSource = new MutableTraceEventStackSource(eventLog);
         stackSource.ShowUnknownAddresses = App.CommandLineArgs.ShowUnknownAddresses;
+        stackSource.ShowOptimizationTiers = App.CommandLineArgs.ShowOptimizationTiers;
         var computer = new ThreadTimeStackComputer(eventLog, App.GetSymbolReader(eventLog.FilePath));
         computer.UseTasks = true;
         computer.ExcludeReadyThread = true;
@@ -1889,10 +1840,11 @@ public static class TraceEventStackSourceExtensions
 
         return stackSource;
     }
-    public static MutableTraceEventStackSource ThreadTimeWithTasksAspNetStacks(this TraceLog eventLog, TraceProcess process = null, bool showUnknownAddresses = false)
+    public static MutableTraceEventStackSource ThreadTimeWithTasksAspNetStacks(this TraceLog eventLog, TraceProcess process = null)
     {
         var stackSource = new MutableTraceEventStackSource(eventLog);
         stackSource.ShowUnknownAddresses = App.CommandLineArgs.ShowUnknownAddresses;
+        stackSource.ShowOptimizationTiers = App.CommandLineArgs.ShowOptimizationTiers;
 
         var computer = new ThreadTimeStackComputer(eventLog, App.GetSymbolReader(eventLog.FilePath));
         computer.UseTasks = true;
@@ -1902,10 +1854,11 @@ public static class TraceEventStackSourceExtensions
 
         return stackSource;
     }
-    public static MutableTraceEventStackSource ThreadTimeAspNetStacks(this TraceLog eventLog, TraceProcess process = null, bool showUnknownAddresses = false)
+    public static MutableTraceEventStackSource ThreadTimeAspNetStacks(this TraceLog eventLog, TraceProcess process = null)
     {
         var stackSource = new MutableTraceEventStackSource(eventLog);
         stackSource.ShowUnknownAddresses = App.CommandLineArgs.ShowUnknownAddresses;
+        stackSource.ShowOptimizationTiers = App.CommandLineArgs.ShowOptimizationTiers;
 
         var computer = new ThreadTimeStackComputer(eventLog, App.GetSymbolReader(eventLog.FilePath));
         computer.ExcludeReadyThread = true;

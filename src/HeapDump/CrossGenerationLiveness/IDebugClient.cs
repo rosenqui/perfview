@@ -1,9 +1,8 @@
-﻿using Microsoft.Diagnostics.Runtime.Interop;
+﻿#if CROSS_GENERATION_LIVENESS
+using Microsoft.Diagnostics.Runtime.Interop;
 using System;
 using System.Runtime.InteropServices;
 using System.Text;
-
-#pragma warning disable 1591
 
 namespace Microsoft.Diagnostics.CrossGenerationLiveness
 {
@@ -234,3 +233,4 @@ namespace Microsoft.Diagnostics.CrossGenerationLiveness
         int FlushCallbacks();
     }
 }
+#endif

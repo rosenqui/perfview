@@ -9,11 +9,13 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Navigation;
 using Utilities;
 
@@ -277,7 +279,7 @@ using Utilities;
 // TFS*gcdump failure because of stack overflow.  
 // Make it so that PerfView can be launched as 64 bit if necessary.  
 // Add point that JavaScript heap dumping only works on Win8 and above to the docs
-// If you have alot of threads, cut the default fold so you don't get everything folded away. 
+// If you have a lot of threads, cut the default fold so you don't get everything folded away. 
 // Add view for reference set 
 // Fix the VirtualAlloc Region to not be O(n) in the number of regions.   (Very slow when you have lots of allocs and frees).   (2/4/2014)] mukul's traces.  
 // Make it so that you can specify performance counter instances using process ID or a pattern match of the command line 
@@ -341,7 +343,7 @@ using Utilities;
 // See mail from CHirs Novak 8/13/2013.   THe 'sum=' bar at the bottom gets the wrong answer in cultures using . for ,.  
 // Add array bucketting to the allocation stack memory views. GCHeapSimulator.OnObjectAllocated should have logic like GCHeapDumper.GetTypeIndex 
 // ARe the problem with real time providers if APIs are called from different threads. If so we should enforce the restriction.  
-// We hit the network ALOT for source lookup.  See what we can do.  
+// We hit the network A LOT for source lookup.  See what we can do.  
 // Add a EventSource monitor function.  It should go in real time to the EventViewer.  
 // Make it so that PerfView will not use user or temp locations to install on machine if desired (ANdre). 
 // Make the event viewer columns sort by numeric value rather than string value when it can.  
@@ -426,13 +428,13 @@ using Utilities;
 // The SaveCPUScenarioStacks feature does not work properly with explicit time range and process when there are mulitple processes
 
 // JavaScript allocation stacks. 
-// Grouping with mscorlib!->XXX;*->OTHER (which matches everyting), does suprising things (most things folded away)
+// Grouping with mscorlib!->XXX;*->OTHER (which matches everyting), does surprising things (most things folded away)
 // Folding away top level nodes. 
-// When you have alot of expicit fields, in the viewer they look like 'Rest' but in Excel they don't and the filtering does not work. 
+// When you have a lot of expicit fields, in the viewer they look like 'Rest' but in Excel they don't and the filtering does not work. 
 // Disable goto source in memory views (or make it work!).  
 // Better filtering for allocation stacks.  per type, after 128 items throttle to a rate of no more than 128 /sec.  
 // Launching PerfView with a command line arg does not change the view directory.  
-// Fix it so that the timestamps used in teh ETW trigger are closely related to the timestamps used in the log 
+// Fix it so that the timestamps used in the ETW trigger are closely related to the timestamps used in the log 
 // (use absolute time?)  
 // A When field for Cores.  
 // Try harder to resynchronize when heap dumps are walking the heap.  
@@ -567,7 +569,7 @@ using Utilities;
 // ** Better memory graph visulization
 // ** Adding / testing Task support
 // ** adding more videos (on e.g. memory diffing) 
-// ** Footprint Analysis - Using JIT events to show where code is touched alot (and rarely used)
+// ** Footprint Analysis - Using JIT events to show where code is touched a lot (and rarely used)
 // **    Can do the same thing with CLRProfiler data (even more accurately)
 // ** the rename should remember the suffix. 
 
@@ -594,7 +596,7 @@ using Utilities;
 // Move rundown waiting logic into TraceEvent.  
 // For merged files, the session end time is no longer the max, compute this max while translating to fix.  
 // Annotate whether the thing being pinned is in GEN2 or not in the pinning view.  
-// Make dependent handles work like a GC refernce traversial
+// Make dependent handles work like a GC reference traversal
 // Add the incomming reference count to the items in the memory view.  
 // Allow you to see source even when checksum fails.  
 // Merging from the command line does not work.  
@@ -656,7 +658,7 @@ using Utilities;
 // Warn if you don't see the rundown end. 
 // Review SymbolPath logic  
 // Make Run dialog box stay up during a 'run' command. 
-// there is a and ugly problem with persistance of suboptimial PDB files
+// there is a and ugly problem with persistence of suboptimial PDB files
 // Allow TraceEventSession to disable completely a provider.  
 // Audit all FreeHGlobal, CloseHandle() use for proper lifetime management.  (and safeHandle useage). 
 // Deal with not having PDBs during NGEN CreatePDB operations which currently cause us to lose line numbers. 
@@ -695,7 +697,7 @@ using Utilities;
 
 // On heap display, show value types, Finalizable, if you are finalized, CCWs (maybe Object Header)  Array Sizes, Component Size, Generation
 // Make default file name better for the RUN command (name of exe .etl)
-// Make it so that it is hard not to ZIP when transfering files to other machines (rename .etl to .unmerged.etl)
+// Make it so that it is hard not to ZIP when transferring files to other machines (rename .etl to .unmerged.etl)
 // Make sure that the names I use for Kernel events are 'offical' (what TDH has)
 // *** Put your home directory in the history of the main window's COMBO box.  
 // *** Fix When display when you drill in or use XML.ZIP files.
@@ -854,7 +856,7 @@ using Utilities;
 // Display something to indicate column sorting capability
 // Default preferences (grouping folding)
 // Remember more gui state when creating sub-windows (sort direction, column widths)
-// Determine if find has wierd issues 
+// Determine if find has weird issues 
 // Should we have a 'filter' box in the 'byName' view
 // Confirm that Process VIEW's CPU count matches Stack View's CPU count.  
 // Place events into the log for the logger itself that indicate how the trace was taken etc. 
@@ -986,7 +988,7 @@ using Utilities;
 // Review TraceCodeAddresses data strucuture.  I believe it can be wrong
 // Share more between CSV and ETL event source
 // Make certain cancel works during symbol lookup.
-// Had a wierd issue where same PDB file was being looked up again and again. 
+// Had a weird issue where same PDB file was being looked up again and again. 
 // Allow creation of XPERF-like marks during data collection. 
 // Fail on unsafe syms?
 // Allow control over threashold when heap filtering happens. 
@@ -1236,7 +1238,7 @@ namespace PerfView
 
             ChangeCurrentDirectoryIfNeeded();
             var memoryDialog = new Dialogs.MemoryDataDialog(App.CommandLineArgs, this, continuation);
-            memoryDialog.Show();        // Can't be a true dialog becasue you can't bring up the log otherwise.  
+            memoryDialog.Show();        // Can't be a true dialog because you can't bring up the log otherwise.  
             // TODO FIX NOW.   no longer a dialog, insure that it is unique?
         }
 
@@ -1386,6 +1388,32 @@ namespace PerfView
             // TODO we may be doing an unnecessary merge.  
             ExecuteCommand("Merging and Zipping " + Path.GetFullPath(App.CommandLineArgs.DataFile), App.CommandProcessor.Merge);
         }
+
+        private void DoMergeAndZipAll(object sender, RoutedEventArgs e)
+        {
+            List<Action> actions = new List<Action>();
+            foreach (var file in TreeView.Items.OfType<PerfViewFile>().Reverse())
+            {
+                var filePath = file.FilePath;
+                if (!filePath.EndsWith(".etl"))
+                {
+                    continue;
+                }
+
+                var continuation = actions.LastOrDefault();
+                actions.Add(() =>
+                {
+                    // TODO this has a side effect... 
+                    App.CommandLineArgs.DataFile = filePath;
+                    App.CommandLineArgs.Zip = true;
+
+                    ExecuteCommand("Merging and Zipping " + Path.GetFullPath(App.CommandLineArgs.DataFile), App.CommandProcessor.Merge, continuation: continuation);
+                });
+            }
+
+            actions.LastOrDefault()?.Invoke();
+        }
+
         private void DoUnZip(object sender, RoutedEventArgs e)
         {
             var selectedFile = TreeView.SelectedItem as PerfViewFile;
@@ -1687,6 +1715,26 @@ namespace PerfView
             StatusBar.Log("Looking up topic " + anchor + " in Users Guide.");
             DisplayUsersGuide(anchor);
         }
+
+        private void OpenInBrowser(object sender, ExecutedRoutedEventArgs e)
+        {
+            var selectedReport = TreeView.SelectedItem as PerfViewHtmlReport;
+            if (selectedReport == null)
+            {
+                throw new ApplicationException("No report selected.");
+            }
+
+            selectedReport.OpenInExternalBrowser(StatusBar);
+        }
+
+        private void CanOpenInBrowser(object sender, CanExecuteRoutedEventArgs e)
+        {
+            if (TreeView.SelectedItem is PerfViewHtmlReport)
+            {
+                e.CanExecute = true;
+            }
+        }
+
         private void DoRefreshDir(object sender, ExecutedRoutedEventArgs e)
         {
             RefreshCurrentDirectory();
@@ -1856,6 +1904,10 @@ namespace PerfView
             StatusBar.Log("Displaying the reference guide.");
             DisplayUsersGuide("ReferenceGuide");
         }
+        private void DoFocusDirectory(object sender, RoutedEventArgs e)
+        {
+            Directory.Focus();
+        }
 
         private void UpdateFileFilter()
         {
@@ -1931,6 +1983,7 @@ namespace PerfView
         public static RoutedUICommand ZipCommand = new RoutedUICommand("Zip", "Zip", typeof(MainWindow));
         public static RoutedUICommand UnZipCommand = new RoutedUICommand("UnZip", "UnZip", typeof(MainWindow));
         public static RoutedUICommand ItemHelpCommand = new RoutedUICommand("Help on Item", "ItemHelp", typeof(MainWindow));
+        public static RoutedUICommand OpenInBrowserCommand = new RoutedUICommand("Open in Browser", "OpenInBrowser", typeof(MainWindow));
         public static RoutedUICommand HideCommand = new RoutedUICommand("Hide", "Hide", typeof(MainWindow),
             new InputGestureCollection() { new KeyGesture(Key.H, ModifierKeys.Alt) });
         public static RoutedUICommand UserCommand = new RoutedUICommand("User Command", "UserCommand", typeof(MainWindow),
@@ -1958,6 +2011,8 @@ namespace PerfView
 
         public static RoutedUICommand HeapSnapshotFromDumpCommand = new RoutedUICommand("Take Heap Snapshot from Process Dump", "HeapSnapshotFromDump",
             typeof(MainWindow));
+        public static RoutedUICommand FocusDirectoryCommand = new RoutedUICommand("Focus Directory", "FocusDirectory", typeof(MainWindow),
+            new InputGestureCollection() { new KeyGesture(Key.L, ModifierKeys.Control) });
         #region private
         internal static List<string> ParseWordsOrQuotedStrings(string commandAndArgs)
         {
@@ -2179,5 +2234,33 @@ namespace PerfView
         }
 
         private string m_openNextFileName;
+
+        /// <summary>
+        /// When you right click an item in the TreeView it doesn't automatically change to the TreeViewItem you clicked on.
+        /// This helper method changes focus so that the right-click menu items commands are bound to the right TreeViewItem
+        /// </summary>
+        private void TreeView_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            TreeViewItem treeViewItem = FindTreeViewItemInVisualHeirarchy(e.OriginalSource as DependencyObject);
+
+            if (treeViewItem != null)
+            {
+                treeViewItem.Focus();
+                e.Handled = true;
+            }
+        }
+
+        /// <summary>
+        /// Given an item in visual a tree, navigate the parents upwards until we find the TreeViewItem it represents.
+        /// </summary>
+        private static TreeViewItem FindTreeViewItemInVisualHeirarchy(DependencyObject source)
+        {
+            while (source != null && !(source is TreeViewItem))
+            {
+                source = VisualTreeHelper.GetParent(source);
+            }
+
+            return source as TreeViewItem;
+        }
     }
 }

@@ -82,6 +82,13 @@ namespace Microsoft.Diagnostics.Tracing
         /// LIke the GroupByAspNetRequest but use start-stop activities instead of ASP.NET Requests as the grouping construct. 
         /// </summary>
         public bool GroupByStartStopActivity;
+
+        /// <summary>
+        /// Reduce nested application insights requests by using related activity id.
+        /// </summary>
+        /// <value></value>
+        public bool IgnoreApplicationInsightsRequestsWithRelatedActivityId  { get; set; } = true;
+
         /// <summary>
         /// Don't show AwaitTime.  For CPU only traces showing await time is misleading since
         /// blocked time will not show up.  
@@ -171,7 +178,7 @@ namespace Microsoft.Diagnostics.Tracing
 
             if (GroupByStartStopActivity)
             {
-                m_startStopActivities = new StartStopActivityComputer(eventSource, m_activityComputer);
+                m_startStopActivities = new StartStopActivityComputer(eventSource, m_activityComputer, IgnoreApplicationInsightsRequestsWithRelatedActivityId);
 
                 // Maps thread Indexes to the start-stop activity that they are executing.  
                 m_threadToStartStopActivity = new StartStopActivity[m_eventLog.Threads.Count];
@@ -689,7 +696,7 @@ namespace Microsoft.Diagnostics.Tracing
             if (thread != null)
             {
                 // Should be running.  
-                // I have seen this fire becasue there are two thread-stops for the same thread in the trace.   
+                // I have seen this fire because there are two thread-stops for the same thread in the trace.   
                 // I have only seen this once so I am leaving this assert (it seems it does more good than harm)
                 // But if it happens habitually, we should pull it.  
                 Debug.Assert(m_threadState[(int)thread.ThreadIndex].ThreadRunning || m_threadState[(int)thread.ThreadIndex].ThreadUninitialized);
@@ -1298,7 +1305,7 @@ namespace Microsoft.Diagnostics.Tracing
         private StartStopActivity[] m_threadToStartStopActivity;
 
         /// <summary>
-        /// Sadly, with AWAIT nodes might come into existance AFTER we would have normally identified 
+        /// Sadly, with AWAIT nodes might come into existence AFTER we would have normally identified 
         /// a region as having no thread/await working on it.  Thus you have to be able to 'undo' ASYNC_UNKONWN
         /// nodes.   We solve this by remembering all of our ASYNC_UNKNOWN nodes on a list (basically provisional)
         /// and only add them when the start-stop activity dies (when we know there can't be another AWAIT.  

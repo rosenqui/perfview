@@ -161,7 +161,8 @@ namespace TraceEventTests
                         data.ProviderName != "Microsoft-Windows-DNS-Client" &&
                         eventName != "KernelTraceControl/ImageID/Opcode(34)" &&
                         eventName != "Windows Kernel/DiskIO/Opcode(16)" &&
-                        eventName != "Windows Kernel/SysConfig/Opcode(37)")
+                        eventName != "Windows Kernel/SysConfig/Opcode(37)" &&
+                        eventName != "KernelTraceControl/ImageID/Opcode(41)")
                     {
                         Output.WriteLine(string.Format("ERROR: File {0}: has unknown event {1} at {2:n3} MSec",
                             etlFilePath, eventName, data.TimeStampRelativeMSec));
@@ -188,7 +189,7 @@ namespace TraceEventTests
                 var expectedistogramLine = baselineFile.ReadLine();
                 lineNum++;
 
-                // This is a hack.  These seem to have differnt counts on different machines.
+                // This is a hack.  These seem to have different counts on different machines.
                 // Need to figure out why, but for now it is tracked by issue https://github.com/Microsoft/perfview/issues/643
                 if (keyValue.Key.Contains("GC/AllocationTick") || keyValue.Key.Contains("Kernel/DiskIO/Read"))
                 {
@@ -239,7 +240,7 @@ namespace TraceEventTests
 
         // Create 1 line that embodies the data in event 'data'
 
-        private static string Parse(TraceEvent data)
+        internal static string Parse(TraceEvent data)
         {
             StringBuilder sb = new StringBuilder();
 
@@ -280,6 +281,11 @@ namespace TraceEventTests
                 valueStr = valueStr.Replace("\n", "\\n").Replace("\r", "\\r");
 
                 sb.Append(payloadNames[i]).Append('=').Append(valueStr).Append("; ");
+            }
+
+            if(data.ContainerID != null)
+            {
+                sb.Append("ContainerID=").Append(data.ContainerID).Append("; ");
             }
 
             return sb.ToString();

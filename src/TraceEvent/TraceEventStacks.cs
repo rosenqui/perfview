@@ -72,6 +72,12 @@ namespace Microsoft.Diagnostics.Tracing.Stacks
         /// to see the actual address as a hexadecimal number.  Setting this will do that.  
         /// </summary>
         public bool ShowUnknownAddresses { get; set; }
+
+        /// <summary>
+        /// Displays the optimization tier of each code version executed for the method.
+        /// </summary>
+        public bool ShowOptimizationTiers { get; set; }
+
         /// <summary>
         /// Looks up symbols for all modules that have an inclusive count >= minCount. 
         /// stackSource, if given, can be used to be the filter.  If null, 'this' is used.
@@ -348,6 +354,15 @@ namespace Microsoft.Diagnostics.Tracing.Stacks
                         methodName = "0x" + m_log.CallStacks.CodeAddresses.Address(codeAddressIndex).ToString("x");
                     }
                 }
+
+                if (ShowOptimizationTiers)
+                {
+                    methodName =
+                        TraceMethod.PrefixOptimizationTier(
+                            methodName,
+                            m_log.CodeAddresses.OptimizationTier(codeAddressIndex));
+                }
+
                 moduleFileIdx = m_log.CodeAddresses.ModuleFileIndex(codeAddressIndex);
             }
             else
@@ -434,7 +449,7 @@ namespace Microsoft.Diagnostics.Tracing.Stacks
         #region private
         /// <summary>
         /// Returns a list of modules for the stack 'stackIdx'.  It also updates the interning table stackModuleLists, so 
-        /// that the entry cooresponding to stackIdx remembers the answer.  This can speed up processing alot since many
+        /// that the entry cooresponding to stackIdx remembers the answer.  This can speed up processing a lot since many
         /// stacks have the same prefixes to root.  
         /// </summary>
         private ModuleList GetModulesForStack(ModuleList[] stackModuleLists, StackSourceCallStackIndex stackIdx)
@@ -682,7 +697,7 @@ namespace Microsoft.Diagnostics.Tracing.Stacks
     public class MutableTraceEventStackSource : TraceEventStackSource
     {
         /// <summary>
-        /// Create a new MutableTraceEventStackSource that can represent stacks comming from any events in the given TraceLog with a stack.  
+        /// Create a new MutableTraceEventStackSource that can represent stacks coming from any events in the given TraceLog with a stack.  
         /// You use the 'AddSample' and 'DoneAddingSamples' to specify exactly which stacks you want in your source.   
         /// </summary>
         public MutableTraceEventStackSource(TraceLog log)

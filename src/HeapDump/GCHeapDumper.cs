@@ -1,5 +1,4 @@
 ﻿#define DEPENDENT_HANDLE
-using ClrMemory;
 using Microsoft.Diagnostics.Symbols;
 using Microsoft.Diagnostics.Tracing;
 using Microsoft.Diagnostics.Tracing.Parsers;
@@ -324,8 +323,6 @@ public class GCHeapDumper
             symbolReader.SymbolPath = SymbolPath.MicrosoftSymbolServerPath;
         }
 
-        target.SymbolProvider = new SymbolProvider(symbolReader);
-
         foreach (ClrInfo currRuntime in EnumerateRuntimes(target))
         {
             m_log.WriteLine("Creating Runtime access object for runtime {0}.", currRuntime.Version);
@@ -381,7 +378,7 @@ public class GCHeapDumper
             }
             catch (ClrDiagnosticsException clrDiagEx)
             {
-                if (clrDiagEx.HResult == (int)ClrDiagnosticsException.HR.RuntimeUninitialized)
+                if (clrDiagEx.Kind == ClrDiagnosticsExceptionKind.RuntimeUninitialized)
                 {
                     // Continue to next runtime.
                     m_log.WriteLine("Runtime uninitialized");
@@ -488,7 +485,7 @@ public class GCHeapDumper
                         {
                             dotNetGCCount++;
                             lastDotNetSurvived = curDotNetSurvived;
-                            curDotNetSurvived = data.TotalPromotedSize0 + data.TotalPromotedSize1 + data.TotalPromotedSize2 + data.TotalPromotedSize3;
+                            curDotNetSurvived = data.TotalPromotedSize0 + data.TotalPromotedSize1 + data.TotalPromotedSize2 + data.TotalPromotedSize3 + data.TotalPromotedSize4;
                             m_log.WriteLine("{0,5:n1}s: .NET GC stats, at {1:n2}s Survived {2}.", sw.Elapsed.TotalSeconds, (data.TimeStamp - startTime).TotalSeconds, curDotNetSurvived);
                         }
                     };
@@ -718,73 +715,6 @@ public class GCHeapDumper
     /// The number of bad objects encountered during the dump 
     /// </summary>
     public int BadObjectCount { get; private set; }
-
-    internal void DumpSerializedExceptionFromProcessDump(string inputSpec, string outputFile)
-    {
-        DataTarget target;
-        ClrRuntime runtime;
-        InitializeClrRuntime(inputSpec, out target, out runtime);
-        IEnumerable<ClrException> serializedExceptions = runtime.EnumerateSerializedExceptions(); 
-        bool flag7 = serializedExceptions == null || Enumerable.Count<ClrException>(serializedExceptions) == 0;
-        if (flag7)
-        {
-            Console.WriteLine("No exceptions");
-        }
-        int num2 = 0;
-        foreach (ClrException current3 in serializedExceptions)
-        {
-            Console.WriteLine(string.Format("Exception #{0}", ++num2));
-            Console.WriteLine(FormatException(current3, 0));
-        }
-    }
-
-    private static string FormatException(ClrException ex, int indentLevel)
-    {
-        StringBuilder stringBuilder = new StringBuilder();
-        StringBuilderIndentExtension.AppendLine(stringBuilder, string.Format("Type: {0}", ex.Type), indentLevel);
-        StringBuilderIndentExtension.AppendLine(stringBuilder, string.Format("Address: {0:X}", ex.Address), indentLevel);
-        StringBuilderIndentExtension.AppendLine(stringBuilder, string.Format("HResult: {0:X}", ex.HResult), indentLevel);
-        bool flag = ex.StackTrace != null;
-        if (flag)
-        {
-            stringBuilder.AppendLine();
-            StringBuilderIndentExtension.AppendLine(stringBuilder, "Stacktrace", indentLevel);
-            StringBuilderIndentExtension.AppendLine(stringBuilder, "------------------------", indentLevel);
-            foreach (ClrStackFrame current in ex.StackTrace)
-            {
-                StringBuilderIndentExtension.AppendLine(stringBuilder, string.Format("[{0:X}] {1}", current.InstructionPointer, current.DisplayString), indentLevel);
-            }
-            stringBuilder.AppendLine();
-        }
-        bool flag2 = ex.Inner != null;
-        if (flag2)
-        {
-            StringBuilderIndentExtension.AppendLine(stringBuilder, "Inner Exception", indentLevel);
-            StringBuilderIndentExtension.AppendLine(stringBuilder, "------------------------", indentLevel);
-            stringBuilder.AppendLine(string.Format("{0}", FormatException(ex.Inner, indentLevel + 1)));
-        }
-        return stringBuilder.ToString();
-    }
-    public static class StringBuilderIndentExtension
-    {
-        public static void Append(StringBuilder sb, string str, int indentLevel)
-        {
-            sb.Append(string.Format("{0}{1}", StringBuilderIndentExtension.getIndent(indentLevel), str));
-        }
-        public static void AppendLine(StringBuilder sb, string str, int indentLevel)
-        {
-            sb.AppendLine(string.Format("{0}{1}", StringBuilderIndentExtension.getIndent(indentLevel), str));
-        }
-        private static string getIndent(int indentLevel)
-        {
-            StringBuilder stringBuilder = new StringBuilder();
-            for (int i = 0; i < indentLevel; i++)
-            {
-                stringBuilder.Append("\t");
-            }
-            return stringBuilder.ToString();
-        }
-    }
 
     #region private
 
@@ -1059,7 +989,7 @@ public class GCHeapDumper
                         }
                         catch (ClrDiagnosticsException clrDiagEx)
                         {
-                            if (clrDiagEx.HResult == (int)ClrDiagnosticsException.HR.RuntimeUninitialized)
+                            if (clrDiagEx.Kind == ClrDiagnosticsExceptionKind.RuntimeUninitialized)
                             {
                                 // Continue to next runtime.
                                 m_log.WriteLine("Runtime uninitialized");
@@ -1078,31 +1008,9 @@ public class GCHeapDumper
                 }
                 else
                 {
-                    // Could not get ClrMD, try to get a ICorDebug for Silverlight.  
+                    // Could not get ClrMD
                     m_log.WriteLine("Could not get Desktop .NET Runtime in process with ID {0}", processID);
-                    m_log.WriteLine("Checking if there is a silverlight runtime.");
-
-                    ICorDebug iCorDebug = null;
-                    try { iCorDebug = Silverlight.DebugActiveSilverlightProcess(processID); }
-                    catch (Exception) { }
-                    if (iCorDebug != null)
-                    {
-                        m_log.WriteLine("Attaching to silverlight process {0} from a {1} process.", processID,
-                            Environment.Is64BitProcess ? ProcessorArchitecture.Amd64 : ProcessorArchitecture.X86);
-                        iCorDebug.DebugActiveProcess((uint)processID, 0, out proc);
-                    }
-                    if (proc == null)
-                    {
-                        m_log.WriteLine("Could not get a ICorDebugProcess from a Silverlight runtime.");
-                        m_log.WriteLine("You must install Silverlight tools for developers.  See http://go.microsoft.com/fwlink/?LinkId=229324.");
-                        m_log.WriteLine("Could not find a desktop or Silveright runtime in the process {0}.", processID);
-                        return false;   // Last chance to dump a .NET heap.  
-                    }
-
-                    Freeze = true;     // TODO  a hack, we tell it not to freeze because we have already done it.  
-                    m_log.WriteLine("freezing process.");
-                    proc.Stop(5000);
-                    gcHeap = new ICorDebugGCHeap(proc);
+                    return false;
                 }
 
                 DumpDotNetHeapData(gcHeap, ref proc, false);
@@ -1262,7 +1170,7 @@ public class GCHeapDumper
 
         m_log.WriteLine("A total of {0} segments.", m_dotNetHeap.Segments.Count);
         // Get the GC Segments to dump
-        var gcHeapDumpSegments = new List<GCHeapDumpSegment>();
+        var gcHeapDumpSegments = new List<GCHeapDumpSegment>(m_dotNetHeap.Segments.Count);
         foreach (var seg in m_dotNetHeap.Segments)
         {
             var gcHeapDumpSegment = new GCHeapDumpSegment();
@@ -1463,7 +1371,7 @@ public class GCHeapDumper
             var rootDuration = m_sw.Elapsed.TotalMilliseconds - rootsStartTimeMSec;
             m_log.WriteLine("Scanning UNNAMED GC roots took {0:n1} msec", rootDuration);
         }
-        catch (Exception e)
+        catch (Exception e) when (!(e is OutOfMemoryException))
         {
             m_log.WriteLine("[ERROR while processing roots: {0}", e.Message);
             m_log.WriteLine("Continuing without complete root information");
@@ -2503,7 +2411,7 @@ public class GCHeapDumper
         }
         else
         {
-            ret = GetTypeIndexForName(name, type.Module.FileName, 0);
+            ret = GetTypeIndexForName(name ?? "<Unnamed " + type.MetadataToken.ToString("x8") + ">", type.Module.FileName, 0);
             m_typeIdxToGraphIdx[idx] = (int)ret + 1;
         }
         return ret;
@@ -2644,41 +2552,6 @@ public class GCHeapDumper
 #endif
     }
 
-    private class SymbolProvider : ISymbolProvider
-    {
-        private SymbolReader m_symbolReader;
-
-        public SymbolProvider(SymbolReader symbolReader)
-        {
-            m_symbolReader = symbolReader;
-        }
-
-        public ISymbolResolver GetSymbolResolver(string pdbName, Guid guid, int age)
-        {
-            string pdb = m_symbolReader.FindSymbolFilePath(pdbName, guid, age);
-            if (pdb == null)
-            {
-                return null;
-            }
-
-            return new SymbolResolver(m_symbolReader.OpenNativeSymbolFile(pdb));
-        }
-    }
-
-    private class SymbolResolver : ISymbolResolver
-    {
-        private NativeSymbolModule m_symbolModule;
-
-        public SymbolResolver(NativeSymbolModule symbolModule)
-        {
-            m_symbolModule = symbolModule;
-        }
-
-        public string GetSymbolNameByRVA(uint rva)
-        {
-            return m_symbolModule.FindNameForRva(rva);
-        }
-    }
 #if false
     private static TextWriter m_debugLog;
 #endif

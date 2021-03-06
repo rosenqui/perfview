@@ -7,8 +7,6 @@ using System.IO.Compression;
 using System.Linq;
 using System.Runtime.InteropServices;
 
-#pragma warning disable 1591
-
 namespace Microsoft.Diagnostics.Tracing
 {
     internal struct ETWMapping
@@ -115,6 +113,11 @@ namespace Microsoft.Diagnostics.Tracing
         {
             Dictionary<string, ETWMapping> result = new Dictionary<string, ETWMapping>();
 
+            // Linux Kernel events 
+            result["sched_process_exec"] = new ETWMapping(Parsers.LinuxKernelEventParser.ProviderGuid, 1, 1, 0);
+            result["sched_process_exit"] = new ETWMapping(Parsers.LinuxKernelEventParser.ProviderGuid, 2, 2, 0);
+            
+
             // Public events
             result["DotNETRuntime:GCStart"] = new ETWMapping(Parsers.ClrTraceEventParser.ProviderGuid, 1, 1, 0);
             result["DotNETRuntime:GCStart_V1"] = new ETWMapping(Parsers.ClrTraceEventParser.ProviderGuid, 1, 1, 1);
@@ -157,6 +160,7 @@ namespace Microsoft.Diagnostics.Tracing
             result["DotNETRuntime:ThreadPoolWorkerThreadStop"] = new ETWMapping(Parsers.ClrTraceEventParser.ProviderGuid, 2, 51, 0);
             result["DotNETRuntime:ThreadPoolWorkerThreadRetirementStop"] = new ETWMapping(Parsers.ClrTraceEventParser.ProviderGuid, 2, 53, 0);
             result["DotNETRuntime:ContentionStop"] = new ETWMapping(Parsers.ClrTraceEventParser.ProviderGuid, 2, 91, 0);
+            result["DotNETRuntime:ContentionStop_V1"] = new ETWMapping(Parsers.ClrTraceEventParser.ProviderGuid, 2, 91, 1);
             result["DotNETRuntime:StrongNameVerificationStop"] = new ETWMapping(Parsers.ClrTraceEventParser.ProviderGuid, 2, 182, 0);
             result["DotNETRuntime:StrongNameVerificationStop_V1"] = new ETWMapping(Parsers.ClrTraceEventParser.ProviderGuid, 2, 182, 1);
             result["DotNETRuntime:AuthenticodeVerificationStop"] = new ETWMapping(Parsers.ClrTraceEventParser.ProviderGuid, 2, 184, 0);
@@ -287,6 +291,14 @@ namespace Microsoft.Diagnostics.Tracing
             result["DotNETRuntime:GCJoin_V2"] = new ETWMapping(Parsers.ClrTraceEventParser.ProviderGuid, 203, 203, 2);
             result["DotNETRuntime:GCBulkSurvivingObjectRanges"] = new ETWMapping(Parsers.ClrTraceEventParser.ProviderGuid, 25, 21, 0);
             result["DotNETRuntime:GCPerHeapHistory_V3_1"] = new ETWMapping(Parsers.ClrTraceEventParser.ProviderGuid, 204, 204, 3);
+            result["DotNETRuntime:TieredCompilationSettings"] = new ETWMapping(Parsers.ClrTraceEventParser.ProviderGuid, 11, 280, 0);
+            result["DotNETRuntime:TieredCompilationPause"] = new ETWMapping(Parsers.ClrTraceEventParser.ProviderGuid, 12, 281, 0);
+            result["DotNETRuntime:TieredCompilationResume"] = new ETWMapping(Parsers.ClrTraceEventParser.ProviderGuid, 13, 282, 0);
+            result["DotNETRuntime:TieredCompilationBackgroundJitStart"] = new ETWMapping(Parsers.ClrTraceEventParser.ProviderGuid, 14, 283, 0);
+            result["DotNETRuntime:TieredCompilationBackgroundJitStop"] = new ETWMapping(Parsers.ClrTraceEventParser.ProviderGuid, 15, 284, 0);
+
+            // Rundown events
+            result["DotNETRuntimeRundown:TieredCompilationSettingsDCStart"] = new ETWMapping(Parsers.ClrTraceEventParser.ProviderGuid, 11, 280, 0);
 
             // Private events
             result["DotNETRuntimePrivate:ApplyPolicyStart"] = new ETWMapping(Parsers.ClrPrivateTraceEventParser.ProviderGuid, 10, 90, 0);
